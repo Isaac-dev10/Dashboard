@@ -1,26 +1,33 @@
+'use client';
+
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Pagination from '@/app/ui/invoices/pagination';
 import Search from '@/app/ui/search';
 import InvoicesTable from '@/app/ui/invoices/table';
 import { CreateInvoice } from '@/app/ui/invoices/buttons';
 import { lusitana } from '@/app/ui/fonts';
 import { InvoicesTableSkeleton } from '@/app/ui/skeletons';
-import { Suspense } from 'react';
 import { fetchInvoicesPages } from '@/app/lib/data';
-import { Metadata } from 'next';
- 
-export const metadata: Metadata = {
-  title: 'Invoices | Acme Dashboard',
-};
-export default async function Page(props: {
-    searchParams?: Promise<{
-        query?: string;
-        page?: string;
-    }>;
-}) {
-    const searchParams = await props.searchParams;
-    const query = searchParams?.query || '';
-    const currentPage = Number(searchParams?.page) || 1;
-    const totalPages = await fetchInvoicesPages(query);
+
+function InvoicesContent() {
+    const searchParams = useSearchParams();
+    const query = searchParams.get('query') || '';
+    const currentPage = Number(searchParams.get('page')) || 1;
+    const [totalPages, setTotalPages] = useState(1);
+
+    useEffect(() => {
+        let active = true;
+        fetchInvoicesPages(query).then((pages) => {
+            if (active) {
+                setTotalPages(pages);
+            }
+        });
+        return () => {
+            active = false;
+        };
+    }, [query]);
+
     return (
         <div className="w-full">
             <div className="flex w-full items-center justify-between">
@@ -39,3 +46,13 @@ export default async function Page(props: {
         </div>
     );
 }
+
+export default function Page() {
+    return (
+        <Suspense fallback={<InvoicesTableSkeleton />}>
+            <InvoicesContent />
+        </Suspense>
+    );
+}
+
+

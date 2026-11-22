@@ -1,226 +1,167 @@
-import { db } from './db';
 import {
   CustomerField,
-  CustomersTableType,
+  FormattedCustomersTable,
   InvoiceForm,
   InvoicesTable,
-  LatestInvoiceRaw,
   Revenue,
   User,
 } from './definitions';
 import { formatCurrency } from './utils';
+import {
+  revenue as placeholderRevenue,
+  customers as placeholderCustomers,
+  invoices as placeholderInvoices,
+  users as placeholderUsers,
+} from './placeholder-data';
 
-export async function fetchRevenue() {
-  try {
-    // Artificially delay a response for demo purposes.
-    // Don't do this in production :)
-
-    const data = db.prepare('SELECT * FROM revenue').all() as Revenue[];
-    return data;
-  } catch (error) {
-    console.error('Database Error:', error);
-    throw new Error('Failed to fetch revenue data.');
-  }
+export async function fetchRevenue(): Promise<Revenue[]> {
+  return placeholderRevenue;
 }
 
 export async function fetchLatestInvoices() {
-  try {
-    const data = db.prepare(`
-      SELECT invoices.amount, customers.name, customers.image_url, customers.email, invoices.id
-      FROM invoices
-      JOIN customers ON invoices.customer_id = customers.id
-      ORDER BY invoices.date DESC
-      LIMIT 5
-    `).all() as LatestInvoiceRaw[];
-
-    const latestInvoices = data.map((invoice) => ({
-      ...invoice,
+  const latest = placeholderInvoices.slice(0, 5).map((invoice, index) => {
+    const customer = placeholderCustomers.find((c) => c.id === invoice.customer_id);
+    return {
+      id: `inv-${index + 1}`,
+      name: customer?.name ?? 'Unknown Customer',
+      image_url: customer?.image_url ?? '/customers/evil-rabbit.png',
+      email: customer?.email ?? 'customer@example.com',
       amount: formatCurrency(invoice.amount),
-    }));
-    return latestInvoices;
-  } catch (error) {
-    console.error('Database Error:', error);
-    throw new Error('Failed to fetch the latest invoices.');
-  }
+    };
+  });
+  return latest;
 }
 
 export async function fetchCardData() {
-  try {
-    const invoiceCountPromise = db.prepare('SELECT COUNT(*) AS count FROM invoices').get() as { count: number };
-    const customerCountPromise = db.prepare('SELECT COUNT(*) AS count FROM customers').get() as { count: number };
-    const invoiceStatusPromise = db.prepare(`
-      SELECT
-        SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END) AS paid,
-        SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END) AS pending
-      FROM invoices
-    `).get() as { paid: number | null; pending: number | null };
-    const data = await Promise.all([
-      invoiceCountPromise,
-      customerCountPromise,
-      invoiceStatusPromise,
-    ]);
-    const numberOfInvoices = Number(data[0].count ?? '0');
-    const numberOfCustomers = Number(data[1].count ?? '0');
-    const totalPaidInvoices = formatCurrency(data[2].paid ?? 0);
-    const totalPendingInvoices = formatCurrency(data[2].pending ?? 0);
+  const numberOfInvoices = placeholderInvoices.length;
+  const numberOfCustomers = placeholderCustomers.length;
+  const paid = placeholderInvoices
+    .filter((inv) => inv.status === 'paid')
+    .reduce((acc, curr) => acc + curr.amount, 0);
+  const pending = placeholderInvoices
+    .filter((inv) => inv.status === 'pending')
+    .reduce((acc, curr) => acc + curr.amount, 0);
 
-    return {
-      numberOfCustomers,
-      numberOfInvoices,
-      totalPaidInvoices,
-      totalPendingInvoices,
-    };
-  } catch (error) {
-    console.error('Database Error:', error);
-    throw new Error('Failed to fetch card data.');
-  }
+  return {
+    numberOfCustomers,
+    numberOfInvoices,
+    totalPaidInvoices: formatCurrency(paid),
+    totalPendingInvoices: formatCurrency(pending),
+  };
 }
 
 const ITEMS_PER_PAGE = 6;
+
 export async function fetchFilteredInvoices(
   query: string,
   currentPage: number,
-) {
+): Promise<InvoicesTable[]> {
   const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+  const q = (query || '').toLowerCase();
 
-  try {
-    const invoices = db.prepare(`
-      SELECT
-        invoices.id,
-        invoices.amount,
-        invoices.date,
-        invoices.status,
-        customers.name,
-        customers.email,
-        customers.image_url
-      FROM invoices
-      JOIN customers ON invoices.customer_id = customers.id
-      WHERE
-        customers.name LIKE @query OR
-        customers.email LIKE @query OR
-        CAST(invoices.amount AS TEXT) LIKE @query OR
-        CAST(invoices.date AS TEXT) LIKE @query OR
-        invoices.status LIKE @query
-      ORDER BY invoices.date DESC
-      LIMIT @limit OFFSET @offset
-    `).all({
-      query: `%${query}%`,
-      limit: ITEMS_PER_PAGE,
-      offset,
-    }) as InvoicesTable[];
-
-    return invoices;
-  } catch (error) {
-    console.error('Database Error:', error);
-    throw new Error('Failed to fetch invoices.');
-  }
-}
-
-export async function fetchInvoicesPages(query: string) {
-  try {
-    const data = db.prepare(`
-      SELECT COUNT(*) AS count
-      FROM invoices
-      JOIN customers ON invoices.customer_id = customers.id
-      WHERE
-        customers.name LIKE @query OR
-        customers.email LIKE @query OR
-        CAST(invoices.amount AS TEXT) LIKE @query OR
-        CAST(invoices.date AS TEXT) LIKE @query OR
-        invoices.status LIKE @query
-    `).get({ query: `%${query}%` }) as { count: number };
-
-    const totalPages = Math.ceil(Number(data?.count ?? 0) / ITEMS_PER_PAGE);
-    return totalPages;
-  } catch (error) {
-    console.error('Database Error:', error);
-    throw new Error('Failed to fetch total number of invoices.');
-  }
-}
-
-export async function fetchInvoiceById(id: string) {
-  try {
-    const invoice = db.prepare(`
-      SELECT
-        invoices.id,
-        invoices.customer_id,
-        invoices.amount,
-        invoices.status
-      FROM invoices
-      WHERE invoices.id = ?
-    `).get(id) as InvoiceForm | undefined;
-
-    if (!invoice) {
-      return undefined;
-    }
-
+  const allInvoices: InvoicesTable[] = placeholderInvoices.map((inv, index) => {
+    const customer = placeholderCustomers.find((c) => c.id === inv.customer_id);
+    const dateStr =
+      typeof inv.date === 'string'
+        ? inv.date
+        : new Date(inv.date as unknown as string).toISOString().split('T')[0];
     return {
-      ...invoice,
-      // Convert amount from cents to dollars
-      amount: invoice.amount / 100,
+      id: `inv-${index + 1}`,
+      customer_id: inv.customer_id,
+      name: customer?.name ?? 'Unknown Customer',
+      email: customer?.email ?? 'customer@example.com',
+      image_url: customer?.image_url ?? '/customers/evil-rabbit.png',
+      amount: inv.amount,
+      date: dateStr,
+      status: inv.status as 'pending' | 'paid',
     };
-  } catch (error) {
-    console.error('Database Error:', error);
-    throw new Error('Failed to fetch invoice.');
-  }
+  });
+
+  const filtered = allInvoices.filter((inv) => {
+    return (
+      inv.name.toLowerCase().includes(q) ||
+      inv.email.toLowerCase().includes(q) ||
+      String(inv.amount).includes(q) ||
+      inv.date.includes(q) ||
+      inv.status.toLowerCase().includes(q)
+    );
+  });
+
+  return filtered.slice(offset, offset + ITEMS_PER_PAGE);
 }
 
-export async function fetchCustomers() {
-  try {
-    const customers = db.prepare(`
-      SELECT
-        id,
-        name
-      FROM customers
-      ORDER BY name ASC
-    `).all() as CustomerField[];
+export async function fetchInvoicesPages(query: string): Promise<number> {
+  const q = (query || '').toLowerCase();
+  const allInvoices = placeholderInvoices.map((inv) => {
+    const customer = placeholderCustomers.find((c) => c.id === inv.customer_id);
+    return {
+      name: customer?.name ?? '',
+      email: customer?.email ?? '',
+      amount: inv.amount,
+      status: inv.status,
+    };
+  });
 
-    return customers;
-  } catch (err) {
-    console.error('Database Error:', err);
-    throw new Error('Failed to fetch all customers.');
-  }
+  const filtered = allInvoices.filter(
+    (inv) =>
+      inv.name.toLowerCase().includes(q) ||
+      inv.email.toLowerCase().includes(q) ||
+      String(inv.amount).includes(q) ||
+      inv.status.toLowerCase().includes(q),
+  );
+
+  return Math.ceil(filtered.length / ITEMS_PER_PAGE) || 1;
 }
 
-export async function fetchFilteredCustomers(query: string) {
-  try {
-    const data = db.prepare(`
-      SELECT
-        customers.id,
-        customers.name,
-        customers.email,
-        customers.image_url,
-        COUNT(invoices.id) AS total_invoices,
-        SUM(CASE WHEN invoices.status = 'pending' THEN invoices.amount ELSE 0 END) AS total_pending,
-        SUM(CASE WHEN invoices.status = 'paid' THEN invoices.amount ELSE 0 END) AS total_paid
-      FROM customers
-      LEFT JOIN invoices ON customers.id = invoices.customer_id
-      WHERE
-        customers.name LIKE @query OR
-        customers.email LIKE @query
-      GROUP BY customers.id, customers.name, customers.email, customers.image_url
-      ORDER BY customers.name ASC
-    `).all({ query: `%${query}%` }) as CustomersTableType[];
+export async function fetchInvoiceById(id: string): Promise<InvoiceForm | undefined> {
+  const allInvoices = placeholderInvoices.map((inv, index) => ({
+    id: `inv-${index + 1}`,
+    customer_id: inv.customer_id,
+    amount: inv.amount / 100,
+    status: inv.status as 'pending' | 'paid',
+  }));
 
-    const customers = data.map((customer) => ({
-      ...customer,
-      total_pending: formatCurrency(customer.total_pending ?? 0),
-      total_paid: formatCurrency(customer.total_paid ?? 0),
-    }));
-
-    return customers;
-  } catch (err) {
-    console.error('Database Error:', err);
-    throw new Error('Failed to fetch customer table.');
-  }
+  const found = allInvoices.find((inv) => inv.id === id) ?? allInvoices[0];
+  return found ? { ...found } : undefined;
 }
 
-export async function getUser(email: string) {
-  try {
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as User | undefined;
-    return user;
-  } catch (error) {
-    console.error('Failed to fetch user:', error);
-    throw new Error('Failed to fetch user.');
-  }
+export async function fetchCustomers(): Promise<CustomerField[]> {
+  return placeholderCustomers.map((c) => ({
+    id: c.id,
+    name: c.name,
+  }));
+}
+
+export async function fetchFilteredCustomers(query: string): Promise<FormattedCustomersTable[]> {
+  const q = (query || '').toLowerCase();
+
+  return placeholderCustomers
+    .filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.email.toLowerCase().includes(q),
+    )
+    .map((c) => {
+      const custInvoices = placeholderInvoices.filter((i) => i.customer_id === c.id);
+      const totalPending = custInvoices
+        .filter((i) => i.status === 'pending')
+        .reduce((sum, i) => sum + i.amount, 0);
+      const totalPaid = custInvoices
+        .filter((i) => i.status === 'paid')
+        .reduce((sum, i) => sum + i.amount, 0);
+
+      return {
+        id: c.id,
+        name: c.name,
+        email: c.email,
+        image_url: c.image_url,
+        total_invoices: custInvoices.length,
+        total_pending: formatCurrency(totalPending),
+        total_paid: formatCurrency(totalPaid),
+      };
+    });
+}
+
+export async function getUser(email: string): Promise<User | undefined> {
+  return placeholderUsers.find((user) => user.email === email);
 }

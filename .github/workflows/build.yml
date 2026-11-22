@@ -3,8 +3,7 @@ name: Build Desktop App
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
   build-windows:
@@ -28,7 +27,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install dependencies
-        run: pnpm install --ignore-scripts
+        run: pnpm install --no-frozen-lockfile
 
       - name: Build Tauri app
         run: pnpm tauri build

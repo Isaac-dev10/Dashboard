@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Dashboard",
   "version": "0.1.0",
-  "identifier": "Isaac-Dashboard",
+  "identifier": "com.isaacdev10.dashboard",
   "build": {
     "frontendDist": "../out",
     "devUrl": "http://localhost:3000",

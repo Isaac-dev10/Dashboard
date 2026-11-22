@@ -1,17 +1,33 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { UpdateInvoice, DeleteInvoice } from '@/app/ui/invoices/buttons';
 import InvoiceStatus from '@/app/ui/invoices/status';
 import { formatDateToLocal, formatCurrency } from '@/app/lib/utils';
 import { fetchFilteredInvoices } from '@/app/lib/data';
+import type { InvoicesTable as InvoicesTableItem } from '@/app/lib/definitions';
 
-export default async function InvoicesTable({
+export default function InvoicesTable({
   query,
   currentPage,
 }: {
   query: string;
   currentPage: number;
 }) {
-  const invoices = await fetchFilteredInvoices(query, currentPage);
+  const [invoices, setInvoices] = useState<InvoicesTableItem[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    fetchFilteredInvoices(query, currentPage).then((data) => {
+      if (active) {
+        setInvoices(data);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [query, currentPage]);
 
   return (
     <div className="mt-6 flow-root">

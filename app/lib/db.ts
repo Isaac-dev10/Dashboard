@@ -1,57 +1,32 @@
+// Client-safe mock database stub replacing better-sqlite3.
+// Native Node C++ addons cause Windows Access Violation crashes during pnpm build
+// and cannot run inside a static Tauri webview. Database persistence will be migrated
+// to @tauri-apps/plugin-sql or Rust commands later.
 
-import Database from 'better-sqlite3';
-import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
-
-const dataDirectory = join(process.cwd(), 'data');
-
-mkdirSync(dataDirectory, { recursive: true });
-
-const databasePath = join(dataDirectory, 'dashboard.sqlite');
-
-const globalForDb = globalThis as typeof globalThis & {
-    sqliteDb?: Database.Database;
-};
-
-export const db =
-    globalForDb.sqliteDb ?? new Database(databasePath);
-
-if (process.env.NODE_ENV !== 'production') {
-    globalForDb.sqliteDb = db;
+export interface MockDbStatement<ResultType = any> {
+  all: (...args: any[]) => ResultType[];
+  get: (...args: any[]) => ResultType | undefined;
+  run: (...args: any[]) => { changes: number; lastInsertRowid: number };
 }
 
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+export interface MockDatabase {
+  prepare: <BindParameters extends any[] = any[], ResultType = any>(
+    query: string,
+  ) => MockDbStatement<ResultType>;
+  exec: (query: string) => void;
+  pragma: (query: string) => void;
+  transaction: <T extends (...args: any[]) => any>(fn: T) => T;
+}
 
-// Ensure tables exist
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    email TEXT NOT NULL UNIQUE,
-    password TEXT NOT NULL
-  );
+export const db: MockDatabase = {
+  prepare: <BindParameters extends any[] = any[], ResultType = any>() => ({
+    all: () => [] as ResultType[],
+    get: () => undefined as ResultType | undefined,
+    run: () => ({ changes: 0, lastInsertRowid: 0 }),
+  }),
+  exec: () => {},
+  pragma: () => {},
+  transaction: (fn) => fn,
+};
 
-  CREATE TABLE IF NOT EXISTS customers (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    email TEXT NOT NULL,
-    image_url TEXT NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS invoices (
-    id TEXT PRIMARY KEY,
-    customer_id TEXT NOT NULL,
-    amount INTEGER NOT NULL,
-    status TEXT NOT NULL,
-    date TEXT NOT NULL,
-    FOREIGN KEY (customer_id)
-      REFERENCES customers(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS revenue (
-    month TEXT NOT NULL UNIQUE,
-    revenue INTEGER NOT NULL
-  );
-`);
-
+export default db;

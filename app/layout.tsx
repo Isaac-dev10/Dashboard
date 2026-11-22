@@ -1,6 +1,6 @@
-import '@/app/ui/global.css'
+import '@/app/ui/global.css';
 import { inter } from '@/app/ui/fonts';
-import NavLinks from '@/app/ui/dashboard/nav-links';
+import DisableContextMenu from '@/app/ui/disable-context-menu';
 import { Metadata } from 'next';
  
 export const metadata: Metadata = {
@@ -11,6 +11,7 @@ export const metadata: Metadata = {
   description: 'The official Next.js Learn Dashboard built with App Router.',
   metadataBase: new URL('https://next-learn-dashboard.vercel.sh'),
 };
+
 export default function RootLayout({
   children,
 }: {
@@ -19,9 +20,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.className} antialiased`}>
-        {/* <div>
-          <NavLinks />
-        </div> */}
+        <DisableContextMenu />
         {children}
       </body>
     </html>
