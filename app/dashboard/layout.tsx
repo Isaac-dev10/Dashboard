@@ -1,7 +1,7 @@
 import SideNav from '@/app/ui/dashboard/sidenav';
 import NavLinks from '../ui/dashboard/nav-links';
 
-export default ({ children }: { children: React.ReactNode }) => {
+export default function Page({ children }: { children: React.ReactNode }) {
     return (
         <div className="flex h-screen flex-col md:flex-row md:overflow-hidden">
             {/* <div><NavLinks /></div> */}
